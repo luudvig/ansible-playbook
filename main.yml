@@ -1,0 +1,54 @@
+---
+
+# ansible-playbook -b -i osmc.lan, -k -u osmc main.yml
+
+- hosts: all
+
+  roles:
+    - role: geerlingguy.docker
+      vars:
+        docker_apt_ansible_distribution: "{{ ansible_os_family }}"
+        docker_compose_package: docker-compose-plugin:arm64
+        docker_packages:
+          - docker-{{ docker_edition }}:arm64
+          - docker-{{ docker_edition }}-cli:arm64
+          - containerd.io:arm64
+        docker_users:
+          - osmc
+
+  tasks:
+    - ansible.builtin.apt:
+        name:
+          - hd-idle
+          - rsync
+
+    - ansible.builtin.cron:
+        name: "{{ item.name }}"
+        job: "{{ item.job }}"
+        disabled: yes
+        hour: "{{ item.hour }}"
+        minute: "{{ item.minute }}"
+        weekday: "{{ item.weekday | default(omit) }}"
+        user: osmc
+      loop:
+        - name: Rclone
+          job: /usr/bin/docker compose --file /home/osmc/docker-osmc-compose/compose.yaml run --rm rclone &> /dev/null
+          hour: "*/6"
+          minute: "0"
+        - name: Update
+          job: /home/osmc/docker-osmc-compose/update.sh
+          hour: "3"
+          minute: "3"
+          weekday: "4"
+
+    - ansible.builtin.lineinfile:
+        path: "{{ item.path }}"
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+      loop:
+        - path: /etc/default/hd-idle
+          regexp: ^#?HD_IDLE_OPTS=
+          line: HD_IDLE_OPTS="-i 0 -a /dev/sda -i 600 -l /var/log/hd-idle.log"
+        - path: /home/osmc/.bashrc
+          regexp: ^#?export LC_ALL=
+          line: export LC_ALL=C.UTF-8
