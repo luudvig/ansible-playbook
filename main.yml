@@ -20,35 +20,52 @@
     - ansible.builtin.apt:
         name:
           - hd-idle
+          - resolvconf
           - rsync
+          - wireguard-tools
 
     - ansible.builtin.cron:
         name: "{{ item.name }}"
         job: "{{ item.job }}"
         disabled: yes
         hour: "{{ item.hour }}"
-        minute: "{{ item.minute }}"
+        minute: "0"
         weekday: "{{ item.weekday | default(omit) }}"
         user: osmc
       loop:
         - name: Rclone
           job: /usr/bin/docker compose --file /home/osmc/docker-osmc-compose/compose.yaml run --rm rclone &> /dev/null
           hour: "*/6"
-          minute: "0"
         - name: Update
           job: /home/osmc/docker-osmc-compose/update.sh
-          hour: "3"
-          minute: "3"
+          hour: "4"
           weekday: "4"
+
+    - ansible.builtin.file:
+        src: docker-osmc-compose/data-ytdlp
+        path: /home/osmc/Youtube
+        state: link
+        follow: no
+        owner: osmc
+        group: osmc
+        force: yes
 
     - ansible.builtin.lineinfile:
         path: "{{ item.path }}"
         regexp: "{{ item.regexp }}"
         line: "{{ item.line }}"
+        backrefs: "{{ item.backrefs | default(omit) }}"
       loop:
         - path: /etc/default/hd-idle
           regexp: ^#?HD_IDLE_OPTS=
           line: HD_IDLE_OPTS="-i 0 -a /dev/sda -i 600 -l /var/log/hd-idle.log"
         - path: /home/osmc/.bashrc
+          regexp: ^#?alias ll=(.*)
+          line: alias ll=\1
+          backrefs: yes
+        - path: /home/osmc/.bashrc
           regexp: ^#?export LC_ALL=
           line: export LC_ALL=C.UTF-8
+        - path: /home/osmc/.bashrc
+          regexp: ^#?yt-dlp()
+          line: yt-dlp() { wg-quick up yt-dlp && docker compose -f /home/osmc/docker-osmc-compose/compose.yaml run --rm yt-dlp -f "bv*[height<=${2:-1080}][protocol^=http][vcodec^=avc]+ba[ext=m4a]" "${1}"; wg-quick down yt-dlp; }
