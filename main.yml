@@ -27,17 +27,22 @@
     - ansible.builtin.cron:
         name: "{{ item.name }}"
         job: "{{ item.job }}"
-        disabled: yes
+        disabled: "{{ item.disabled | default(omit) }}"
         hour: "{{ item.hour }}"
         minute: "0"
         weekday: "{{ item.weekday | default(omit) }}"
         user: osmc
       loop:
+        - name: Connman
+          job: if ! /usr/bin/ping -c 1 1.1.1.1; then /usr/bin/connmanctl disable wifi; /usr/bin/sleep 1; /usr/bin/connmanctl enable wifi; fi &> /dev/null
+          hour: "1-23/2"
         - name: Rclone
           job: /usr/bin/docker compose --file /home/osmc/docker-osmc-compose/compose.yaml run --rm rclone &> /dev/null
+          disabled: yes
           hour: "*/6"
         - name: Update
           job: /home/osmc/docker-osmc-compose/update.sh
+          disabled: yes
           hour: "4"
           weekday: "4"
 
