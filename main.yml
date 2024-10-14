@@ -13,7 +13,7 @@
     - role: geerlingguy.docker
       vars:
         docker_apt_ansible_distribution: "{{ ansible_os_family }}"
-        docker_install_compose_plugin: no
+        docker_compose_package: docker-compose-plugin:arm64
         docker_packages:
           - docker-{{ docker_edition }}:arm64
           - docker-{{ docker_edition }}-cli:arm64
@@ -30,17 +30,41 @@
           - wireguard-tools
 
     - ansible.builtin.copy:
-        content: |
-          FROM alpine:latest
-          RUN apk add --no-cache ffmpeg python3 && \
-              wget -P /usr/local/bin https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp && \
-              chmod +x /usr/local/bin/yt-dlp
-          USER 1000:1000
-          WORKDIR /data
-          ENTRYPOINT ["yt-dlp"]
-        dest: /home/osmc/.dockerfile.yt-dlp
+        content: "{{ item.content }}"
+        dest: "{{ item.dest }}"
         owner: osmc
         group: osmc
+      loop:
+        - content: |
+            services:
+              transmission:
+                container_name: transmission
+                environment:
+                  - PUID=1000
+                  - PGID=1000
+                  - TZ=Europe/Stockholm
+                  - USER=osmc
+                  - PASS={{ lookup('community.general.random_string') }}
+                image: linuxserver/transmission:latest
+                ports:
+                  - "9091:9091"
+                  - "51413:51413"
+                  - "51413:51413/udp"
+                pull_policy: always
+                volumes:
+                  - ./Transmission/config:/config
+                  - ./Transmission/downloads:/downloads
+                  - ./Transmission/watch:/watch
+          dest: /home/osmc/.docker-compose.transmission
+        - content: |
+            FROM alpine:latest
+            RUN apk add --no-cache ffmpeg python3 && \
+                wget -P /usr/local/bin https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp && \
+                chmod +x /usr/local/bin/yt-dlp
+            USER 1000:1000
+            WORKDIR /data
+            ENTRYPOINT ["yt-dlp"]
+          dest: /home/osmc/.dockerfile.yt-dlp
 
     - ansible.builtin.cron:
         name: Connman
@@ -49,10 +73,13 @@
         user: osmc
 
     - ansible.builtin.file:
-        path: /home/osmc/Youtube
+        path: "{{ item }}"
         state: directory
         owner: osmc
         group: osmc
+      loop:
+        - /home/osmc/Transmission
+        - /home/osmc/Youtube
 
     - ansible.builtin.lineinfile:
         path: "{{ item.path }}"
@@ -68,11 +95,17 @@
           line: alias ll=\1
           backrefs: yes
         - path: /home/osmc/.bashrc
+          regexp: ^#?alias transmission-up=
+          line: alias transmission-up='wg-quick up transmission && docker compose -f /home/osmc/.docker-compose.transmission up -d'
+        - path: /home/osmc/.bashrc
+          regexp: ^#?alias transmission-down=
+          line: alias transmission-down='docker compose -f /home/osmc/.docker-compose.transmission down -v && wg-quick down transmission'
+        - path: /home/osmc/.bashrc
           regexp: ^#?export LC_ALL=
           line: export LC_ALL=C.UTF-8
         - path: /home/osmc/.bashrc
           regexp: ^#?yt-dlp()
-          line: yt-dlp() { wg-quick up yt-dlp && docker build -t localhost/yt-dlp - < /home/osmc/.dockerfile.yt-dlp && docker run --rm -v /home/osmc/Youtube:/data localhost/yt-dlp -f "bv*[height<=${2:-1080}][protocol^=http][vcodec^=avc]+ba[ext=m4a]" "${1}"; wg-quick down yt-dlp; }
+          line: yt-dlp() { wg-quick up yt-dlp && docker build --pull -t localhost/yt-dlp - < /home/osmc/.dockerfile.yt-dlp && docker run --rm -v /home/osmc/Youtube:/data localhost/yt-dlp -f "bv*[height<=${2:-1080}][protocol^=http][vcodec^=avc]+ba[ext=m4a]" "${1}"; wg-quick down yt-dlp; }
 
     - ansible.builtin.raw: echo -e "{{ ansible_password }}\n{{ new_password }}\n{{ new_password }}" | passwd
       become_user: osmc
