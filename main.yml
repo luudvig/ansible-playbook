@@ -44,7 +44,7 @@
                   - PGID=1000
                   - TZ=Europe/Stockholm
                   - USER=osmc
-                  - PASS={{ lookup('community.general.random_string') }}
+                  - PASS={{ lookup('community.general.random_string', length=14, special=false) }}
                 image: linuxserver/transmission:latest
                 ports:
                   - "9091:9091"
