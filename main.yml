@@ -71,17 +71,22 @@
           line: alias ll=\1
           backrefs: yes
         - path: /home/osmc/.bashrc
-          regexp: ^#?alias transmission-up=
-          line: alias transmission-up='wg-quick up transmission && docker run -d -e PUID=1000 -e PGID=1000 -e TZ=Europe/Stockholm -e USER=osmc -e PASS={{ lookup('community.general.random_string', length=14, special=false) }} --name transmission -p 9091:9091 -p 51413:51413 -p 51413:51413/udp --pull always --rm -v /home/osmc/Transmission/config:/config -v /home/osmc/Transmission/downloads:/downloads linuxserver/transmission:latest'
+          regexp: ^#?alias transmission-run=
+          line: alias transmission-run='wg-quick up transmission && docker run -d -e PUID=1000 -e PGID=1000 -e TZ=Europe/Stockholm -e USER=osmc -e PASS={{ lookup('community.general.random_string', length=14, special=false) }} --name transmission -p 9091:9091 -p 51413:51413 -p 51413:51413/udp --pull always --rm -v /home/osmc/Transmission/config:/config -v /home/osmc/Transmission/downloads:/downloads linuxserver/transmission:latest'
         - path: /home/osmc/.bashrc
-          regexp: ^#?alias transmission-down=
-          line: alias transmission-down='docker rm -f transmission && wg-quick down transmission'
+          regexp: ^#?alias transmission-rm=
+          line: alias transmission-rm='docker rm -f transmission && wg-quick down transmission'
         - path: /home/osmc/.bashrc
           regexp: ^#?export LC_ALL=
           line: export LC_ALL=C.UTF-8
         - path: /home/osmc/.bashrc
           regexp: ^#?yt-dlp()
-          line: yt-dlp() { wg-quick up yt-dlp && docker build --pull -t localhost/yt-dlp - < /home/osmc/.dockerfile.yt-dlp && docker run --rm -v /home/osmc/Youtube:/data localhost/yt-dlp -f "bv*[height<=${2:-1080}][protocol^=http][vcodec^=avc]+ba[ext=m4a]" "${1}"; wg-quick down yt-dlp; }
+          line: yt-dlp() { docker build --pull -t localhost/yt-dlp - < /home/osmc/.dockerfile.yt-dlp && docker run --rm -v /home/osmc/Youtube:/data localhost/yt-dlp -f "bv*[height<=${2:-1080}][protocol^=http][vcodec^=avc]+ba[ext=m4a]" "${1}"; }
+
+    - ansible.builtin.replace:
+        path: /home/osmc/.bash_logout
+        regexp: '^(\s*)(.*\/usr\/bin\/clear_console\s.*)$'
+        replace: '\1: # \2'
 
     - ansible.builtin.raw: echo -e "{{ ansible_password }}\n{{ new_password }}\n{{ new_password }}" | passwd
       become_user: osmc
