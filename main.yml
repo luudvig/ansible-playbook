@@ -29,24 +29,31 @@
           - rsync
           - wireguard-tools
 
-    - ansible.builtin.copy:
-        content: |
-          FROM alpine:latest
-          RUN apk add --no-cache ffmpeg python3 && \
-              wget -P /usr/local/bin https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp && \
-              chmod +x /usr/local/bin/yt-dlp
-          USER 1000:1000
-          WORKDIR /data
-          ENTRYPOINT ["yt-dlp"]
-        dest: /home/osmc/.dockerfile.yt-dlp
-        owner: osmc
-        group: osmc
-
     - ansible.builtin.cron:
-        name: Connman
-        job: if ! /usr/bin/ping -c 1 1.1.1.1; then /usr/bin/connmanctl disable wifi; /usr/bin/sleep 1; /usr/bin/connmanctl enable wifi; fi &> /dev/null
-        minute: "0"
+        name: "{{ item.name }}"
+        job: "{{ item.job }}"
+        minute: "{{ item.minute }}"
+        hour: "{{ item.hour | default(omit) }}"
+        weekday: "{{ item.weekday | default(omit) }}"
         user: osmc
+      loop:
+        - name: Connection check
+          job: if ! /usr/bin/ping -c 1 1.1.1.1; then /usr/bin/connmanctl disable wifi; /usr/bin/sleep 1; /usr/bin/connmanctl enable wifi; fi &> /dev/null
+          minute: "0"
+        - name: Transmission start weekday
+          job: /home/osmc/Transmission/start.sh
+          minute: "5"
+          hour: "17"
+          weekday: "1-5"
+        - name: Transmission start weekend
+          job: /home/osmc/Transmission/start.sh
+          minute: "5"
+          hour: "5"
+          weekday: "0,6"
+        - name: Transmission stop
+          job: /home/osmc/Transmission/stop.sh
+          minute: "0"
+          hour: "4"
 
     - ansible.builtin.file:
         path: "{{ item }}"
@@ -56,6 +63,40 @@
       loop:
         - /home/osmc/Transmission
         - /home/osmc/Youtube
+
+    - ansible.builtin.copy:
+        content: "{{ item.content }}"
+        dest: "{{ item.dest }}"
+        mode: "{{ item.mode }}"
+        owner: osmc
+        group: osmc
+      loop:
+        - content: |
+            #!/usr/bin/bash
+            PATH=/usr/bin:/sbin
+            set -e
+            wg-quick up transmission
+            docker container run -d -e PUID=1000 -e PGID=1000 -e TZ=Europe/Stockholm -e USER=osmc -e PASS={{ lookup('community.general.random_string', length=14, special=false) }} --name transmission -p 9091:9091 -p 51413:51413 -p 51413:51413/udp --pull always -v /home/osmc/Transmission/config:/config -v /home/osmc/Transmission/downloads:/downloads linuxserver/transmission:latest
+          dest: /home/osmc/Transmission/start.sh
+          mode: "755"
+        - content: |
+            #!/usr/bin/bash
+            PATH=/usr/bin:/sbin
+            set -e
+            docker container rm -f transmission
+            wg-quick down transmission
+          dest: /home/osmc/Transmission/stop.sh
+          mode: "755"
+        - content: |
+            FROM alpine:latest
+            RUN apk add --no-cache ffmpeg python3 && \
+                wget -P /usr/local/bin https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp && \
+                chmod +x /usr/local/bin/yt-dlp
+            USER 1000:1000
+            WORKDIR /data
+            ENTRYPOINT ["yt-dlp"]
+          dest: /home/osmc/.dockerfile.yt-dlp
+          mode: "644"
 
     - ansible.builtin.lineinfile:
         path: "{{ item.path }}"
@@ -70,12 +111,6 @@
           regexp: ^#?alias ll=(.*)
           line: alias ll=\1
           backrefs: yes
-        - path: /home/osmc/.bashrc
-          regexp: ^#?alias transmission-run=
-          line: alias transmission-run='wg-quick up transmission && docker run -d -e PUID=1000 -e PGID=1000 -e TZ=Europe/Stockholm -e USER=osmc -e PASS={{ lookup('community.general.random_string', length=14, special=false) }} --name transmission -p 9091:9091 -p 51413:51413 -p 51413:51413/udp --pull always --rm -v /home/osmc/Transmission/config:/config -v /home/osmc/Transmission/downloads:/downloads linuxserver/transmission:latest'
-        - path: /home/osmc/.bashrc
-          regexp: ^#?alias transmission-rm=
-          line: alias transmission-rm='docker rm -f transmission && wg-quick down transmission'
         - path: /home/osmc/.bashrc
           regexp: ^#?export LC_ALL=
           line: export LC_ALL=C.UTF-8
