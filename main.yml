@@ -119,9 +119,16 @@
           line: yt-dlp() { docker build --pull -t localhost/yt-dlp - < /home/osmc/.dockerfile.yt-dlp && docker run --rm -v /home/osmc/Youtube:/data localhost/yt-dlp -f "bv*[height<=${2:-1080}][protocol^=http][vcodec^=avc]+ba[ext=m4a]" "${1}"; }
 
     - ansible.builtin.replace:
-        path: /home/osmc/.bash_logout
-        regexp: '^(\s*)(.*\/usr\/bin\/clear_console\s.*)$'
-        replace: '\1: # \2'
+        path: "{{ item.path }}"
+        regexp: "{{ item.regexp }}"
+        replace: "{{ item.replace }}"
+      loop:
+        - path: /etc/ld.so.preload
+          regexp: '^(\/usr\/lib\/libarmmem\.so)$'
+          replace: '#\1'
+        - path: /home/osmc/.bash_logout
+          regexp: '^(\s*)(\[\s+-x\s+\/usr\/bin\/clear_console\s.*)$'
+          replace: '\1: # \2'
 
     - ansible.builtin.raw: echo -e "{{ ansible_password }}\n{{ new_password }}\n{{ new_password }}" | passwd
       become_user: osmc
