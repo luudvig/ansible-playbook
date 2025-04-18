@@ -32,28 +32,17 @@
     - ansible.builtin.cron:
         name: "{{ item.name }}"
         job: "{{ item.job }}"
-        minute: "{{ item.minute }}"
-        hour: "{{ item.hour | default(omit) }}"
-        weekday: "{{ item.weekday | default(omit) }}"
+        hour: "{{ item.hour }}"
+        minute: "0"
+        weekday: "1-5"
         user: osmc
       loop:
-        - name: Connection check
-          job: if ! /usr/bin/ping -c 1 1.1.1.1; then /usr/bin/connmanctl disable wifi; /usr/bin/sleep 1; /usr/bin/connmanctl enable wifi; fi &> /dev/null
-          minute: "0"
-        - name: Transmission start weekday
+        - name: Transmission start
           job: /home/osmc/Transmission/start.sh
-          minute: "5"
           hour: "17"
-          weekday: "1-5"
-        - name: Transmission start weekend
-          job: /home/osmc/Transmission/start.sh
-          minute: "5"
-          hour: "5"
-          weekday: "0,6"
         - name: Transmission stop
           job: /home/osmc/Transmission/stop.sh
-          minute: "5"
-          hour: "4"
+          hour: "5"
 
     - ansible.builtin.file:
         path: "{{ item }}"
