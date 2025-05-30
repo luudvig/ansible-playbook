@@ -20,14 +20,14 @@
     - ansible.builtin.command:
         cmd: firewall-cmd --set-default-zone=drop
       register: command_result
-      changed_when: "'ZONE_ALREADY_SET' not in command_result['stderr']"
+      changed_when: "'ZONE_ALREADY_SET' not in command_result.stderr"
 
     - ansible.builtin.hostname:
-        name: "{{ ansible_facts['product_version'] | split | first | lower }}"
+        name: "{{ ansible_facts.product_version | split | first | lower }}"
         use: systemd
 
     - ansible.builtin.lineinfile:
-        path: "{{ ansible_facts['env']['HOME'] }}/.bashrc"
+        path: "{{ ansible_facts.env.HOME }}/.bashrc"
         regexp: "{{ item.regexp }}"
         line: "{{ item.line }}"
       loop:
@@ -37,12 +37,12 @@
           line: export HISTCONTROL=ignoreboth
 
     - ansible.builtin.file:
-        path: "{{ ansible_facts['env']['HOME'] }}/.ssh"
+        path: "{{ ansible_facts.env.HOME }}/.ssh"
         mode: "700"
         state: directory
 
     - community.crypto.openssh_keypair:
-        path: "{{ ansible_facts['env']['HOME'] }}/.ssh/id_ed25519"
+        path: "{{ ansible_facts.env.HOME }}/.ssh/id_ed25519"
         type: ed25519
 
     - community.general.dconf:
@@ -90,22 +90,22 @@
         - path: /etc/gdm/custom.conf
           section: daemon
           option: AutomaticLoginEnable
-          value: True
+          value: "True"
           create: no
           no_extra_spaces: yes
           become: yes
         - path: /etc/gdm/custom.conf
           section: daemon
           option: AutomaticLogin
-          value: "{{ ansible_facts['user_id'] }}"
+          value: "{{ ansible_facts.user_id }}"
           create: no
           no_extra_spaces: yes
           become: yes
-        - path: "{{ ansible_facts['env']['HOME'] }}/.gitconfig"
+        - path: "{{ ansible_facts.env.HOME }}/.gitconfig"
           section: user
           option: "\temail"
           value: "{{ git_user_email }}"
-        - path: "{{ ansible_facts['env']['HOME'] }}/.gitconfig"
+        - path: "{{ ansible_facts.env.HOME }}/.gitconfig"
           section: user
           option: "\tname"
           value: "{{ git_user_name }}"
