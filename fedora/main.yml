@@ -13,120 +13,28 @@
       private: no
 
   tasks:
-    - ansible.builtin.hostname:
-        name: "{{ ansible_facts['product_version'] | split | first | lower }}"
-        use: systemd
+    - import_tasks: containers.yml
+
+    - import_tasks: packages.yml
 
     - ansible.builtin.command:
         cmd: firewall-cmd --set-default-zone=drop
       register: command_result
       changed_when: "'ZONE_ALREADY_SET' not in command_result['stderr']"
 
-    - community.general.ini_file:
-        path: "{{ item.path }}"
-        section: "{{ item.section }}"
-        option: "{{ item.option }}"
-        value: "{{ item.value }}"
-        no_extra_spaces: yes
-      become: yes
-      loop:
-        - path: /etc/fwupd/remotes.d/lvfs.conf
-          section: fwupd Remote
-          option: Enabled
-          value: false
-        - path: /etc/gdm/custom.conf
-          section: daemon
-          option: AutomaticLoginEnable
-          value: True
-        - path: /etc/gdm/custom.conf
-          section: daemon
-          option: AutomaticLogin
-          value: "{{ ansible_facts['user_id'] }}"
-        - path: /etc/yum.repos.d/google-chrome.repo
-          section: google-chrome
-          option: enabled
-          value: 1
-
-    - ansible.builtin.copy:
-        content: |
-          [mullvad-stable]
-          name=Mullvad VPN
-          baseurl=https://repository.mullvad.net/rpm/stable/$basearch
-          type=rpm
-          enabled=1
-          gpgcheck=1
-          gpgkey=https://repository.mullvad.net/rpm/mullvad-keyring.asc
-        dest: /etc/yum.repos.d/mullvad.repo
-      become: yes
-
-    - ansible.builtin.dnf:
-        name: "{{ item.name }}"
-        allowerasing: "{{ item.allowerasing | default(omit) }}"
-        disable_gpg_check: "{{ item.disable_gpg_check | default(omit) }}"
-      become: yes
-      loop:
-        - name: https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ ansible_facts['distribution_major_version'] }}.noarch.rpm
-          disable_gpg_check: yes
-        - name: ffmpeg
-          allowerasing: yes
-        - name: google-chrome-stable
-        - name: mullvad-vpn
-        - name: python3-psutil
-        - name: vim-enhanced
-        - name: vlc
-
-    - ansible.builtin.get_url:
-        url: "{{ item.url }}"
-        dest: "{{ item.dest }}"
-        mode: "755"
-      become: yes
-      loop:
-        - url: https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64
-          dest: /usr/local/bin/docker-compose
-        - url: https://github.com/kubernetes/minikube/releases/latest/download/minikube-linux-amd64
-          dest: /usr/local/bin/minikube
-        - url: https://dl.k8s.io/release/{{ lookup('ansible.builtin.url', 'https://dl.k8s.io/release/stable.txt') }}/bin/linux/amd64/kubectl
-          dest: /usr/local/bin/kubectl
-        - url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-          dest: /tmp/get_helm.sh
-
-    - ansible.builtin.command:
-        cmd: /tmp/get_helm.sh
-        creates: /usr/local/bin/helm
-
-    - ansible.builtin.user:
-        name: "{{ ansible_facts['user_id'] }}"
-        append: yes
-        groups: libvirt
-      become: yes
-
-    - ansible.builtin.systemd_service:
-        name: podman.socket
-        enabled: yes
-        scope: user
+    - ansible.builtin.hostname:
+        name: "{{ ansible_facts['product_version'] | split | first | lower }}"
+        use: systemd
 
     - ansible.builtin.lineinfile:
         path: "{{ ansible_facts['env']['HOME'] }}/.bashrc"
         regexp: "{{ item.regexp }}"
         line: "{{ item.line }}"
       loop:
-        - regexp: ^export DOCKER_HOST=
-          line: export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock
         - regexp: ^export EDITOR=
           line: export EDITOR=/usr/bin/vim
         - regexp: ^export HISTCONTROL=
           line: export HISTCONTROL=ignoreboth
-
-    - community.general.ini_file:
-        path: "{{ ansible_facts['env']['HOME'] }}/.gitconfig"
-        section: user
-        option: "\t{{ item.option }}"
-        value: "{{ item.value }}"
-      loop:
-        - option: email
-          value: "{{ git_user_email }}"
-        - option: name
-          value: "{{ git_user_name }}"
 
     - ansible.builtin.file:
         path: "{{ ansible_facts['env']['HOME'] }}/.ssh"
@@ -169,3 +77,35 @@
           value: "uint32 3700"
         - key: /org/gnome/shell/favorite-apps
           value: "['org.mozilla.firefox.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Ptyxis.desktop', 'mullvad-vpn.desktop', 'google-chrome.desktop', 'chrome-faolnafnngnfdaknnbpnkhgohbobgegn-Default.desktop', 'chrome-cifhbcnohmdccbgoicgdjpfamggdegmo-Default.desktop', 'chrome-pjibgclleladliembfgfagdaldikeohf-Default.desktop']"
+
+    - community.general.ini_file:
+        path: "{{ item.path }}"
+        section: "{{ item.section }}"
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+        create: "{{ item.create | default(omit) }}"
+        no_extra_spaces: "{{ item.no_extra_spaces | default(omit) }}"
+      become: "{{ item.become | default(omit) }}"
+      loop:
+        - path: /etc/gdm/custom.conf
+          section: daemon
+          option: AutomaticLoginEnable
+          value: True
+          create: no
+          no_extra_spaces: yes
+          become: yes
+        - path: /etc/gdm/custom.conf
+          section: daemon
+          option: AutomaticLogin
+          value: "{{ ansible_facts['user_id'] }}"
+          create: no
+          no_extra_spaces: yes
+          become: yes
+        - path: "{{ ansible_facts['env']['HOME'] }}/.gitconfig"
+          section: user
+          option: "\temail"
+          value: "{{ git_user_email }}"
+        - path: "{{ ansible_facts['env']['HOME'] }}/.gitconfig"
+          section: user
+          option: "\tname"
+          value: "{{ git_user_name }}"
