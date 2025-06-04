@@ -1,32 +1,32 @@
 ---
 
-- ansible.builtin.get_url:
-    url: "{{ item.url }}"
-    dest: "{{ item.dest }}"
-    mode: "755"
-  become: "{{ item.become | default(omit) }}"
-  loop:
-    - url: https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64
-      dest: /usr/local/bin/docker-compose
-      become: yes
-    - url: https://github.com/kubernetes/minikube/releases/latest/download/minikube-linux-amd64
-      dest: /usr/local/bin/minikube
-      become: yes
-    - url: https://dl.k8s.io/release/{{ lookup('ansible.builtin.url', 'https://dl.k8s.io/release/stable.txt') }}/bin/linux/amd64/kubectl
-      dest: /usr/local/bin/kubectl
-      become: yes
-    - url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-      dest: /tmp/get_helm.sh
-
-- ansible.builtin.command:
-    cmd: /tmp/get_helm.sh
-    creates: /usr/local/bin/helm
-  become: yes
-
 - ansible.builtin.lineinfile:
     path: "{{ ansible_facts.env.HOME }}/.bashrc"
     regexp: ^export DOCKER_HOST=
     line: export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock
+
+- ansible.builtin.shell:
+    cmd: "{{ item.cmd }}"
+    creates: "{{ item.creates }}"
+  become: yes
+  vars:
+    compose_url: https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64
+    compose_file: /usr/local/bin/docker-compose
+    helm_url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+    helm_file: /usr/local/bin/helm
+    kubectl_url: https://dl.k8s.io/release/{{ lookup('ansible.builtin.url', 'https://dl.k8s.io/release/stable.txt') }}/bin/linux/amd64/kubectl
+    kubectl_file: /usr/local/bin/kubectl
+    minikube_url: https://github.com/kubernetes/minikube/releases/latest/download/minikube-linux-amd64
+    minikube_file: /usr/local/bin/minikube
+  loop:
+    - cmd: curl -Lo {{ compose_file }} {{ compose_url }} && chmod +x {{ compose_file }}
+      creates: "{{ compose_file }}"
+    - cmd: curl -L {{ helm_url }} | bash
+      creates: "{{ helm_file }}"
+    - cmd: curl -Lo {{ kubectl_file }} {{ kubectl_url }} && chmod +x {{ kubectl_file }}
+      creates: "{{ kubectl_file }}"
+    - cmd: curl -Lo {{ minikube_file }} {{ minikube_url }} && chmod +x {{ minikube_file }}
+      creates: "{{ minikube_file }}"
 
 - ansible.builtin.systemd_service:
     name: podman.socket
