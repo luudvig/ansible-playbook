@@ -119,3 +119,4 @@
 
     - ansible.builtin.raw: echo -e "{{ ansible_password }}\n{{ new_password }}\n{{ new_password }}" | passwd
       become_user: osmc
+      when: new_password != ansible_password
