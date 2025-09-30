@@ -37,9 +37,6 @@
         weekday: "1-5"
         user: osmc
       loop:
-        - name: Transmission refresh
-          job: /home/osmc/Transmission/refresh.sh
-          hour: "6"
         - name: Transmission start
           job: /home/osmc/Transmission/start.sh
           hour: "17"
@@ -48,13 +45,10 @@
           hour: "5"
 
     - ansible.builtin.file:
-        path: "{{ item }}"
+        path: /home/osmc/Transmission
         state: directory
         owner: osmc
         group: osmc
-      loop:
-        - /home/osmc/Transmission
-        - /home/osmc/Youtube
 
     - ansible.builtin.copy:
         content: "{{ item.content }}"
@@ -65,17 +59,11 @@
       loop:
         - content: |
             #!/usr/bin/bash
-            docker image pull linuxserver/transmission
-            echo -e 'FROM alpine\nRUN apk add --no-cache ffmpeg python3' | docker image build --pull -t localhost/yt-dlp-base -
-            docker image ls --format {% raw %}'{{ '{{' }}.Repository}}:{{ '{{' }}.Tag}} {{ '{{' }}.ID}}'{% endraw %} | grep -E -v '^(alpine|linuxserver\/transmission|localhost\/yt-dlp-base):latest\s' | awk '{print $2}' | xargs -r docker image rm
-            echo -e 'FROM localhost/yt-dlp-base\nRUN wget -P /usr/local/bin https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp && chmod +x /usr/local/bin/yt-dlp\nUSER 1000:1000\nWORKDIR /data\nENTRYPOINT ["yt-dlp"]' | docker image build -t localhost/yt-dlp -
-          dest: /home/osmc/Transmission/refresh.sh
-        - content: |
-            #!/usr/bin/bash
             PATH=/usr/bin:/sbin
             set -e
             wg-quick up transmission
-            docker container run -d -e PUID=1000 -e PGID=1000 -e TZ=Europe/Stockholm -e USER=osmc -e PASS={{ new_password | quote }} --name transmission -p 9091:9091 -p 51413:51413 -p 51413:51413/udp -v /home/osmc/Transmission/config:/config -v /home/osmc/Transmission/downloads:/downloads linuxserver/transmission:latest
+            docker container run -d -e PUID=1000 -e PGID=1000 -e TZ=Europe/Stockholm -e USER=osmc -e PASS={{ new_password | quote }} --name transmission -p 9091:9091 -p 51413:51413 -p 51413:51413/udp --pull always -v /home/osmc/Transmission/config:/config -v /home/osmc/Transmission/downloads:/downloads linuxserver/transmission:latest
+            docker image ls -f 'dangling=true' | grep '^linuxserver/transmission\s' | awk '{print $3}' | xargs -r docker image rm
           dest: /home/osmc/Transmission/start.sh
         - content: |
             #!/usr/bin/bash
@@ -91,6 +79,15 @@
         line: "{{ item.line }}"
         backrefs: "{{ item.backrefs | default(omit) }}"
       loop:
+        - path: /boot/config-user.txt
+          regexp: ^#?arm_freq=
+          line: arm_freq=2000
+        - path: /boot/config-user.txt
+          regexp: ^#?gpu_freq=
+          line: gpu_freq=750
+        - path: /boot/config-user.txt
+          regexp: ^#?over_voltage=
+          line: over_voltage=6
         - path: /etc/default/hd-idle
           regexp: ^#?HD_IDLE_OPTS=
           line: HD_IDLE_OPTS="-i 0 -a /dev/sda -i 600 -l /var/log/hd-idle.log"
@@ -101,9 +98,6 @@
         - path: /home/osmc/.bashrc
           regexp: ^#?export LC_ALL=
           line: export LC_ALL=C.UTF-8
-        - path: /home/osmc/.bashrc
-          regexp: ^#?yt-dlp()
-          line: yt-dlp() { docker container run --rm -v /home/osmc/Youtube:/data localhost/yt-dlp -f "bv*[height<=${2:-1080}][protocol^=http][vcodec^=avc]+ba[ext=m4a]" "${1}"; }
 
     - ansible.builtin.replace:
         path: "{{ item.path }}"
