@@ -6,27 +6,18 @@
     line: export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock
 
 - ansible.builtin.shell:
-    cmd: "{{ item.cmd }}"
-    creates: "{{ item.creates }}"
+    cmd: "{{ item.cmd | default(['curl', '--location', '--output', item.file, item.url | default(omit), '&&', 'chmod', '+x', item.file] | join(' ')) }}"
+    creates: "{{ item.file }}"
   become: yes
-  vars:
-    compose_url: https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64
-    compose_file: /usr/local/bin/docker-compose
-    helm_url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-    helm_file: /usr/local/bin/helm
-    kubectl_url: https://dl.k8s.io/release/{{ lookup('ansible.builtin.url', 'https://dl.k8s.io/release/stable.txt') }}/bin/linux/amd64/kubectl
-    kubectl_file: /usr/local/bin/kubectl
-    minikube_url: https://github.com/kubernetes/minikube/releases/latest/download/minikube-linux-amd64
-    minikube_file: /usr/local/bin/minikube
   loop:
-    - cmd: curl -Lo {{ compose_file }} {{ compose_url }} && chmod +x {{ compose_file }}
-      creates: "{{ compose_file }}"
-    - cmd: curl -L {{ helm_url }} | bash
-      creates: "{{ helm_file }}"
-    - cmd: curl -Lo {{ kubectl_file }} {{ kubectl_url }} && chmod +x {{ kubectl_file }}
-      creates: "{{ kubectl_file }}"
-    - cmd: curl -Lo {{ minikube_file }} {{ minikube_url }} && chmod +x {{ minikube_file }}
-      creates: "{{ minikube_file }}"
+    - url: https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64
+      file: /usr/local/bin/docker-compose
+    - cmd: curl --location https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      file: /usr/local/bin/helm
+    - url: https://dl.k8s.io/release/{{ lookup('ansible.builtin.url', 'https://dl.k8s.io/release/stable.txt') }}/bin/linux/amd64/kubectl
+      file: /usr/local/bin/kubectl
+    - url: https://github.com/kubernetes/minikube/releases/latest/download/minikube-linux-amd64
+      file: /usr/local/bin/minikube
 
 - ansible.builtin.systemd_service:
     name: podman.socket

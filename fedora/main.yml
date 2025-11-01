@@ -1,6 +1,6 @@
 ---
 
-# sudo dnf -y install ansible && ansible-playbook -K main.yml
+# sudo dnf -y install ansible && git log --format=%ae:%an | uniq && ansible-playbook -K main.yml
 
 - hosts: localhost
 
@@ -35,6 +35,12 @@
           line: export EDITOR=/usr/bin/vim
         - regexp: ^export HISTCONTROL=
           line: export HISTCONTROL=ignoreboth
+
+    - ansible.builtin.shell:
+        cmd: curl --create-dirs --location --output {{ file }} https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp && chmod +x {{ file }}
+        creates: "{{ file }}"
+      vars:
+        file: "{{ ansible_facts.env.HOME }}/.local/bin/yt-dlp"
 
     - ansible.builtin.file:
         path: "{{ ansible_facts.env.HOME }}/.ssh"
