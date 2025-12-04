@@ -63,7 +63,7 @@
             set -e
             wg-quick up transmission
             docker container run -d -e PUID=1000 -e PGID=1000 -e TZ=Europe/Stockholm -e USER=osmc -e PASS={{ new_password | quote }} --name transmission -p 9091:9091 -p 51413:51413 -p 51413:51413/udp --pull always -v /home/osmc/Transmission/config:/config -v /home/osmc/Transmission/downloads:/downloads linuxserver/transmission:latest
-            docker image ls -f 'dangling=true' | grep '^linuxserver/transmission\s' | awk '{print $3}' | xargs -r docker image rm
+            docker image ls -f 'dangling=true' --format {% raw %}'{{ '{{' }}.Repository}}\t{{ '{{' }}.ID}}'{% endraw %} | grep '^linuxserver/transmission\s' | awk '{print $2}' | xargs -r docker image rm
           dest: /home/osmc/Transmission/start.sh
         - content: |
             #!/usr/bin/bash
